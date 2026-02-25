@@ -21,6 +21,7 @@ import org.json.JSONObject;
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class PluginWifiPrinter extends CordovaPlugin {
 
@@ -28,6 +29,9 @@ public class PluginWifiPrinter extends CordovaPlugin {
     private CallbackContext scanCallbackContext;
 
     private StringBuilder base64Buffer = new StringBuilder();
+
+    // ใหม่ 25/2/2026
+    private static final Map<String, Object> printerLocks = new ConcurrentHashMap<>();
 
     @Override
     public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
@@ -274,356 +278,241 @@ public class PluginWifiPrinter extends CordovaPlugin {
         }
     }
 
-    // -------------------------- เรียกคำสั่งนี้ในโปรเจคของคุณ
-    // ----------------------//
-    // private void printBase64ImageToXprinter(String ip, String base64Image,
-    // CallbackContext callbackContext) {
-    // new Thread(() -> {
-    // if (base64Image == null || base64Image.trim().isEmpty()) {
-    // callbackContext.error("❌ ข้อมูล Base64 ว่างเปล่า");
-    // return;
-    // }
-
-    // base64Buffer.setLength(0);
-    // base64Buffer.append(base64Image);
-
-    // Bitmap originalBitmap = null;
-    // Socket socket = null;
-
-    // try {
-    // Log.i(TAG, "🔍 เริ่มแปลงข้อมูล Base64 เป็นรูปภาพ...");
-    // byte[] decoded = Base64.decode(base64Image.replaceAll("\\s", ""),
-    // Base64.NO_WRAP);
-    // originalBitmap = BitmapFactory.decodeByteArray(decoded, 0, decoded.length);
-
-    // if (originalBitmap == null) {
-    // callbackContext.error("❌ ไม่สามารถแปลง Base64 เป็นรูปภาพได้");
-    // return;
-    // }
-
-    // Log.i(TAG, "✅ แปลงรูปภาพสำเร็จ กำลังปรับขนาดและแปลงเป็นขาวดำ...");
-    // Bitmap processedBitmap = resizeBitmap(originalBitmap, 576);
-    // processedBitmap = toBlackAndWhiteDither(processedBitmap);
-
-    // List<Bitmap> chunks = splitBitmap(processedBitmap, 1000);
-    // Log.i(TAG, "📄 แบ่งรูปภาพเป็น " + chunks.size() + " ชิ้น");
-
-    // socket = connectToPrinter(ip);
-    // Log.i(TAG, "🔗 เชื่อมต่อกับเครื่องพิมพ์ที่ IP: " + ip);
-
-    // OutputStream out = socket.getOutputStream();
-    // InputStream in = socket.getInputStream();
-
-    // boolean allChunksSent = true;
-
-    // // ส่งทุก chunk พร้อม retry
-    // for (int i = 0; i < chunks.size(); i++) {
-    // Bitmap chunk = chunks.get(i);
-    // Log.i(TAG, String.format("🖨️ ส่งชิ้นที่ %d/%d", i + 1, chunks.size()));
-
-    // boolean sent = false;
-    // int retryMax = 3;
-    // int retryDelayMs = 1000;
-
-    // for (int attempt = 1; attempt <= retryMax; attempt++) {
-    // if (sendBitmapChunkToStream(chunk, out)) {
-    // Log.i(TAG, String.format("✅ ชิ้น %d ส่งสำเร็จในครั้งที่ %d", i + 1,
-    // attempt));
-    // sent = true;
-    // break;
-    // } else {
-    // Log.w(TAG, String.format(
-    // "⚠️ ชิ้น %d ส่งไม่สำเร็จ (ครั้งที่ %d) รอ %d มิลลิวินาทีแล้วลองใหม่",
-    // i + 1, attempt, retryDelayMs));
-    // Thread.sleep(retryDelayMs);
-    // }
-    // }
-
-    // chunk.recycle();
-
-    // if (!sent) {
-    // allChunksSent = false;
-    // break;
-    // }
-    // }
-
-    // out.flush();
-
-    // // ตรวจสอบสถานะเครื่องและตัดกระดาษ
-    // if (allChunksSent) {
-    // Log.i(TAG, "⏳ รอสถานะเครื่องพิมพ์...");
-    // if (waitForPrinterReady(out, in, 2000)) {
-    // cutPaper(out);
-    // callbackContext.success("✅ พิมพ์เรียบร้อยและตัดกระดาษแล้ว");
-    // } else {
-    // cutPaper(out);
-    // callbackContext.error("⚠️ Printer timeout แต่ตัดกระดาษแล้ว");
-    // }
-    // } else {
-    // cutPaper(out);
-    // callbackContext.error("❌ พิมพ์ไม่ครบทุกชิ้น");
-    // }
-
-    // } catch (Exception e) {
-    // Log.e(TAG, "❌ เกิดข้อผิดพลาดระหว่างพิมพ์: " + e.getMessage(), e);
-    // callbackContext.error("❌ ข้อผิดพลาด: " + e.getMessage());
-    // } finally {
-    // if (originalBitmap != null && !originalBitmap.isRecycled()) {
-    // originalBitmap.recycle();
-    // }
-    // base64Buffer.setLength(0);
-
-    // try {
-    // if (socket != null && !socket.isClosed()) {
-    // socket.close();
-    // Log.i(TAG, "🔌 ปิดการเชื่อมต่อกับเครื่องพิมพ์แล้ว");
-    // }
-    // } catch (IOException ignore) {
-    // }
-    // }
-    // }).start();
-    // }
-    // *----------------------------------ล่าสุดวันนี้------------------------------------
-    // */
+    // 25/2/2026---------------------------------------------------------------------------------------------------------
     private void printBase64ImageToXprinter(String ip, String base64Image, CallbackContext callbackContext) {
+
+        if (base64Image == null || base64Image.trim().isEmpty()) {
+            callbackContext.error("❌ ข้อมูล Base64 ว่างเปล่า");
+            return;
+        }
+
+        // 🔒 Lock แยกตาม IP (กันยิงซ้อน IP เดียวกัน)
+        Object lock = printerLocks.computeIfAbsent(ip, k -> new Object());
+
         new Thread(() -> {
-            if (base64Image == null || base64Image.trim().isEmpty()) {
-                callbackContext.error("❌ ข้อมูล Base64 ว่างเปล่า");
-                return;
-            }
 
-            base64Buffer.setLength(0);
-            base64Buffer.append(base64Image);
+            synchronized (lock) {
 
-            Bitmap originalBitmap = null;
-            Socket socket = null;
-
-            try {
-                // ✅ เช็กว่าเป็น Epson ไหม
-                boolean isEpson = ip.toLowerCase().contains("epson");
-                // Log.i(TAG, "🔍 Printer type check: " + (isEpson ? "Epson" : "Xprinter/Other"));
-
-                // Log.i(TAG, "🔍 เริ่มแปลงข้อมูล Base64 เป็นรูปภาพ...");
-                byte[] decoded = Base64.decode(base64Image.replaceAll("\\s", ""), Base64.NO_WRAP);
-                originalBitmap = BitmapFactory.decodeByteArray(decoded, 0, decoded.length);
-
-                if (originalBitmap == null) {
-                    callbackContext.error("❌ ไม่สามารถแปลง Base64 เป็นรูปภาพได้");
-                    return;
-                }
-
-                // Log.i(TAG, "✅ แปลงรูปภาพสำเร็จ กำลังปรับขนาดและแปลงเป็นขาวดำ...");
-                Bitmap processedBitmap = resizeBitmap(originalBitmap, 576);
-                processedBitmap = toBlackAndWhiteDither(processedBitmap);
-
-                List<Bitmap> chunks = splitBitmap(processedBitmap, 1000);
-                // Log.i(TAG, "📄 แบ่งรูปภาพเป็น " + chunks.size() + " ชิ้น");
-
-                socket = connectToPrinter(ip);
-                // Log.i(TAG, "🔗 เชื่อมต่อกับเครื่องพิมพ์ที่ IP: " + ip);
-
-                OutputStream out = socket.getOutputStream();
-                InputStream in = socket.getInputStream();
-
-                boolean allChunksSent = true;
-
-                // ส่งทุก chunk พร้อม retry
-                for (int i = 0; i < chunks.size(); i++) {
-                    Bitmap chunk = chunks.get(i);
-                    // Log.i(TAG, String.format("🖨️ ส่งชิ้นที่ %d/%d", i + 1, chunks.size()));
-
-                    boolean sent = false;
-                    int retryMax = 3;
-                    int retryDelayMs = 1000;
-
-                    for (int attempt = 1; attempt <= retryMax; attempt++) {
-                        if (sendBitmapChunkToStream(chunk, out)) {
-                            // Log.i(TAG, String.format("✅ ชิ้น %d ส่งสำเร็จในครั้งที่ %d", i + 1, attempt));
-                            sent = true;
-                            break;
-                        } else {
-                            Log.w(TAG, String.format(
-                                    "⚠️ ชิ้น %d ส่งไม่สำเร็จ (ครั้งที่ %d) รอ %d มิลลิวินาทีแล้วลองใหม่",
-                                    i + 1, attempt, retryDelayMs));
-                            Thread.sleep(retryDelayMs);
-                        }
-                    }
-
-                    chunk.recycle();
-
-                    if (!sent) {
-                        allChunksSent = false;
-                        break;
-                    }
-                }
-
-                out.flush();
-
-                // ✅ Epson กับ Xprinter อาจใช้ flow ไม่เหมือนกัน
-                if (allChunksSent) {
-                    if (isEpson) {
-                        // Epson: ไม่ต้องรอสถานะ แค่ตัดกระดาษพอ
-                        cutPaper(out);
-                        callbackContext.success("1");
-                    } else {
-                        // Xprinter: รอสถานะเครื่องก่อนตัด
-                        // Log.i(TAG, "⏳ รอสถานะเครื่องพิมพ์ (Xprinter)...");
-                        if (waitForPrinterReady(out, in, 2000, isEpson)) {
-                            cutPaper(out);
-                            callbackContext.success("1");
-                        } else {
-                            cutPaper(out);
-                            callbackContext.error("⚠️ Printer timeout แต่ตัดกระดาษแล้ว");
-                        }
-                    }
-                } else {
-                    cutPaper(out);
-                    callbackContext.error("❌ พิมพ์ไม่ครบทุกชิ้น");
-                }
-
-            } catch (Exception e) {
-                Log.e(TAG, "❌ เกิดข้อผิดพลาดระหว่างพิมพ์: " + e.getMessage(), e);
-                callbackContext.error("❌ ข้อผิดพลาด: " + e.getMessage());
-            } finally {
-                if (originalBitmap != null && !originalBitmap.isRecycled()) {
-                    originalBitmap.recycle();
-                }
-                base64Buffer.setLength(0);
+                Bitmap originalBitmap = null;
+                Bitmap processedBitmap = null;
+                Socket socket = null;
 
                 try {
-                    if (socket != null && !socket.isClosed()) {
-                        socket.close();
-                        // Log.i(TAG, "🔌 ปิดการเชื่อมต่อกับเครื่องพิมพ์แล้ว");
+
+                    // ✅ Decode Base64 → Bitmap
+                    byte[] decoded = Base64.decode(base64Image.replaceAll("\\s", ""), Base64.NO_WRAP);
+                    originalBitmap = BitmapFactory.decodeByteArray(decoded, 0, decoded.length);
+
+                    if (originalBitmap == null) {
+                        callbackContext.error("❌ ไม่สามารถแปลง Base64 เป็นรูปภาพได้");
+                        return;
                     }
-                } catch (IOException ignore) {
+
+                    // ✅ Resize + Dither
+                    processedBitmap = resizeBitmap(originalBitmap, 576);
+                    processedBitmap = toBlackAndWhiteDither(processedBitmap);
+
+                    List<Bitmap> chunks = splitBitmap(processedBitmap, 1000);
+
+                    // ✅ Connect printer
+                    socket = connectToPrinter(ip);
+                    OutputStream out = socket.getOutputStream();
+
+                    boolean allChunksSent = true;
+
+                    for (Bitmap chunk : chunks) {
+
+                        boolean sent = false;
+
+                        int retryMax = 3;
+                        int retryDelayMs = 500;
+
+                        for (int attempt = 1; attempt <= retryMax; attempt++) {
+
+                            if (sendBitmapChunkToStream(chunk, out)) {
+                                sent = true;
+                                break;
+                            } else {
+                                try {
+                                    Thread.sleep(retryDelayMs);
+                                } catch (InterruptedException ignored) {}
+                            }
+                        }
+
+                        chunk.recycle();
+
+                        if (!sent) {
+                            allChunksSent = false;
+                            break;
+                        }
+                    }
+
+                    out.flush();
+
+                    // 🔥 สำคัญ — ให้ buffer printer รับข้อมูลก่อนตัดกระดาษ
+                    try {
+                        Thread.sleep(150);
+                    } catch (InterruptedException ignored) {}
+
+                    if (allChunksSent) {
+
+                        cutPaper(out);
+                        callbackContext.success("1");
+
+                    } else {
+
+                        cutPaper(out);
+                        callbackContext.error("❌ พิมพ์ไม่ครบทุกชิ้น");
+                    }
+
+                } catch (Exception e) {
+
+                    Log.e(TAG, "❌ Print error: " + e.getMessage(), e);
+                    callbackContext.error("❌ ข้อผิดพลาด: " + e.getMessage());
+
+                } finally {
+
+                    // 🔥 ป้องกัน Memory Leak
+
+                    try {
+                        if (processedBitmap != null && !processedBitmap.isRecycled()) {
+                            processedBitmap.recycle();
+                        }
+                    } catch (Exception ignored) {}
+
+                    try {
+                        if (originalBitmap != null && !originalBitmap.isRecycled()) {
+                            originalBitmap.recycle();
+                        }
+                    } catch (Exception ignored) {}
+
+                    try {
+                        if (socket != null && !socket.isClosed()) {
+                            socket.close();
+                        }
+                    } catch (IOException ignored) {}
                 }
             }
+
         }).start();
     }
+    // ----------------------------------เวอร์เก่า------------------------------------
+    // private void printBase64ImageToXprinter(String ip, String base64Image, CallbackContext callbackContext) {
+    //     new Thread(() -> {
+    //         if (base64Image == null || base64Image.trim().isEmpty()) {
+    //             callbackContext.error("❌ ข้อมูล Base64 ว่างเปล่า");
+    //             return;
+    //         }
+    //         base64Buffer.setLength(0);
+    //         base64Buffer.append(base64Image);
 
+    //         Bitmap originalBitmap = null;
+    //         Socket socket = null;
+
+    //         try {
+    //             // ✅ เช็กว่าเป็น Epson ไหม
+    //             boolean isEpson = ip.toLowerCase().contains("epson");
+    //             // Log.i(TAG, "🔍 Printer type check: " + (isEpson ? "Epson" : "Xprinter/Other"));
+
+    //             // Log.i(TAG, "🔍 เริ่มแปลงข้อมูล Base64 เป็นรูปภาพ...");
+    //             byte[] decoded = Base64.decode(base64Image.replaceAll("\\s", ""), Base64.NO_WRAP);
+    //             originalBitmap = BitmapFactory.decodeByteArray(decoded, 0, decoded.length);
+
+    //             if (originalBitmap == null) {
+    //                 callbackContext.error("❌ ไม่สามารถแปลง Base64 เป็นรูปภาพได้");
+    //                 return;
+    //             }
+
+    //             // Log.i(TAG, "✅ แปลงรูปภาพสำเร็จ กำลังปรับขนาดและแปลงเป็นขาวดำ...");
+    //             Bitmap processedBitmap = resizeBitmap(originalBitmap, 576);
+    //             processedBitmap = toBlackAndWhiteDither(processedBitmap);
+
+    //             List<Bitmap> chunks = splitBitmap(processedBitmap, 1000);
+    //             // Log.i(TAG, "📄 แบ่งรูปภาพเป็น " + chunks.size() + " ชิ้น");
+
+    //             socket = connectToPrinter(ip);
+    //             // Log.i(TAG, "🔗 เชื่อมต่อกับเครื่องพิมพ์ที่ IP: " + ip);
+
+    //             OutputStream out = socket.getOutputStream();
+    //             InputStream in = socket.getInputStream();
+
+    //             boolean allChunksSent = true;
+
+    //             // ส่งทุก chunk พร้อม retry
+    //             for (int i = 0; i < chunks.size(); i++) {
+    //                 Bitmap chunk = chunks.get(i);
+    //                 // Log.i(TAG, String.format("🖨️ ส่งชิ้นที่ %d/%d", i + 1, chunks.size()));
+
+    //                 boolean sent = false;
+    //                 int retryMax = 3;
+    //                 int retryDelayMs = 1000;
+
+    //                 for (int attempt = 1; attempt <= retryMax; attempt++) {
+    //                     if (sendBitmapChunkToStream(chunk, out)) {
+    //                         // Log.i(TAG, String.format("✅ ชิ้น %d ส่งสำเร็จในครั้งที่ %d", i + 1, attempt));
+    //                         sent = true;
+    //                         break;
+    //                     } else {
+    //                         Log.w(TAG, String.format(
+    //                                 "⚠️ ชิ้น %d ส่งไม่สำเร็จ (ครั้งที่ %d) รอ %d มิลลิวินาทีแล้วลองใหม่",
+    //                                 i + 1, attempt, retryDelayMs));
+    //                         Thread.sleep(retryDelayMs);
+    //                     }
+    //                 }
+
+    //                 chunk.recycle();
+
+    //                 if (!sent) {
+    //                     allChunksSent = false;
+    //                     break;
+    //                 }
+    //             }
+
+    //             out.flush();
+
+    //             // ✅ Epson กับ Xprinter อาจใช้ flow ไม่เหมือนกัน
+    //             if (allChunksSent) {
+    //                 if (isEpson) {
+    //                     // Epson: ไม่ต้องรอสถานะ แค่ตัดกระดาษพอ
+    //                     cutPaper(out);
+    //                     callbackContext.success("1");
+    //                 } else {
+    //                     // Xprinter: รอสถานะเครื่องก่อนตัด
+    //                     // Log.i(TAG, "⏳ รอสถานะเครื่องพิมพ์ (Xprinter)...");
+    //                     if (waitForPrinterReady(out, in, 2000, isEpson)) {
+    //                         cutPaper(out);
+    //                         callbackContext.success("1");
+    //                     } else {
+    //                         cutPaper(out);
+    //                         callbackContext.error("⚠️ Printer timeout แต่ตัดกระดาษแล้ว");
+    //                     }
+    //                 }
+    //             } else {
+    //                 cutPaper(out);
+    //                 callbackContext.error("❌ พิมพ์ไม่ครบทุกชิ้น");
+    //             }
+
+    //         } catch (Exception e) {
+    //             Log.e(TAG, "❌ เกิดข้อผิดพลาดระหว่างพิมพ์: " + e.getMessage(), e);
+    //             callbackContext.error("❌ ข้อผิดพลาด: " + e.getMessage());
+    //         } finally {
+    //             if (originalBitmap != null && !originalBitmap.isRecycled()) {
+    //                 originalBitmap.recycle();
+    //             }
+    //             base64Buffer.setLength(0);
+
+    //             try {
+    //                 if (socket != null && !socket.isClosed()) {
+    //                     socket.close();
+    //                     // Log.i(TAG, "🔌 ปิดการเชื่อมต่อกับเครื่องพิมพ์แล้ว");
+    //                 }
+    //             } catch (IOException ignore) {
+    //             }
+    //         }
+    //     }).start();
+    // }
+    
     /*----------------------------------------------------------------------- */
-
-    // private void printBase64ImageToXprinter(String ip, String base64Image,
-    // CallbackContext callbackContext) {
-    // new Thread(() -> {
-    // if (base64Image == null || base64Image.trim().isEmpty()) {
-    // callbackContext.error("❌ ข้อมูล Base64 ว่างเปล่า");
-    // return;
-    // }
-
-    // base64Buffer.setLength(0);
-    // base64Buffer.append(base64Image);
-
-    // Bitmap originalBitmap = null;
-    // Socket socket = null;
-
-    // try {
-    // Log.i(TAG, "🔍 เริ่มแปลงข้อมูล Base64 เป็นรูปภาพ...");
-    // byte[] decoded = Base64.decode(base64Image.replaceAll("\\s", ""),
-    // Base64.NO_WRAP);
-    // originalBitmap = BitmapFactory.decodeByteArray(decoded, 0, decoded.length);
-
-    // if (originalBitmap == null) {
-    // callbackContext.error("❌ ไม่สามารถแปลง Base64 เป็นรูปภาพได้");
-    // return;
-    // }
-
-    // Log.i(TAG, "✅ แปลงรูปภาพสำเร็จ กำลังปรับขนาดและแปลงเป็นขาวดำ...");
-    // Bitmap processedBitmap = resizeBitmap(originalBitmap, 576);
-    // processedBitmap = toBlackAndWhiteDither(processedBitmap);
-
-    // List<Bitmap> chunks = splitBitmap(processedBitmap, 1000);
-    // Log.i(TAG, "📄 แบ่งรูปภาพเป็น " + chunks.size() + " ชิ้น");
-
-    // socket = connectToPrinter(ip);
-    // Log.i(TAG, "🔗 เชื่อมต่อกับเครื่องพิมพ์ที่ IP: " + ip);
-
-    // OutputStream out = socket.getOutputStream();
-    // InputStream in = socket.getInputStream();
-
-    // int retryMax = 3;
-    // int retryDelayMs = 1000;
-
-    // boolean success = true;
-
-    // for (int i = 0; i < chunks.size(); i++) {
-    // Bitmap chunk = chunks.get(i);
-    // Log.i(TAG, String.format("🖨️ ส่งชิ้นที่ %d/%d", i + 1, chunks.size()));
-
-    // boolean sent = false;
-    // for (int attempt = 1; attempt <= retryMax; attempt++) {
-    // if (sendBitmapChunkToStream(chunk, out)) {
-    // Log.i(TAG, String.format("✅ ชิ้น %d ส่งสำเร็จในครั้งที่ %d", i + 1,
-    // attempt));
-    // sent = true;
-    // break;
-    // } else {
-    // Log.w(TAG,
-    // String.format("⚠️ ชิ้น %d ส่งไม่สำเร็จ (ครั้งที่ %d) รอ %d
-    // มิลลิวินาทีแล้วลองใหม่",
-    // i + 1, attempt, retryDelayMs));
-    // Thread.sleep(retryDelayMs);
-    // }
-    // }
-
-    // chunk.recycle();
-
-    // if (!sent) {
-    // success = false;
-    // break;
-    // }
-    // }
-
-    // out.flush();
-
-    // if (success) {
-    // Log.i(TAG, "⏳ รอสถานะเครื่องพิมพ์จนกว่าจะพร้อม…");
-    // int retry = 0, maxRetry = 60;
-
-    // while (retry++ < maxRetry) {
-    // if (waitForPrinterReady(out, in, 1000)) {
-    // Log.i(TAG, "✅ เครื่องพิมพ์พร้อมแล้ว ส่งคำสั่งตัดกระดาษ");
-    // cutPaper(out);
-    // callbackContext.success("✅ พิมพ์เรียบร้อยและตัดกระดาษแล้ว");
-    // break;
-    // } else {
-    // Log.i(TAG, "⏳ เครื่องพิมพ์ยังไม่พร้อม (ครั้งที่ " + retry + "/" + maxRetry +
-    // ")");
-    // Thread.sleep(1000);
-    // }
-    // }
-
-    // if (retry >= maxRetry) {
-    // Log.w(TAG, "⚠️ เครื่องพิมพ์ไม่ตอบสนองหลังรอครบ " + maxRetry + " วินาที");
-    // cutPaper(out);
-    // callbackContext.error("⚠️ เครื่องพิมพ์ไม่ตอบสนองหลังรอนานเกินไป");
-    // }
-
-    // } else {
-    // Log.w(TAG, "❌ ไม่สามารถส่งข้อมูลทุกชิ้นได้");
-    // cutPaper(out);
-    // callbackContext.error("❌ พิมพ์ไม่ครบทุกชิ้น");
-    // }
-
-    // } catch (Exception e) {
-    // Log.e(TAG, "❌ เกิดข้อผิดพลาดระหว่างพิมพ์: " + e.getMessage(), e);
-    // callbackContext.error("❌ ข้อผิดพลาด: " + e.getMessage());
-    // } finally {
-    // if (originalBitmap != null && !originalBitmap.isRecycled()) {
-    // originalBitmap.recycle();
-    // }
-    // base64Buffer.setLength(0);
-
-    // try {
-    // if (socket != null && !socket.isClosed()) {
-    // socket.close();
-    // Log.i(TAG, "🔌 ปิดการเชื่อมต่อกับเครื่องพิมพ์แล้ว");
-    // }
-    // } catch (IOException ignore) {
-    // }
-    // }
-    // }).start();
-    // }
 
     private void printTextAsImage(String ip, String text, CallbackContext callbackContext) {
         new Thread(() -> {
@@ -724,39 +613,6 @@ public class PluginWifiPrinter extends CordovaPlugin {
         return socket;
     }
 
-    /** รอสถานะ ready */
-    // private boolean waitForPrinterReady(OutputStream out, InputStream in, int
-    // timeoutMs) {
-    // try {
-    // byte[] statusCmd = new byte[] { 0x10, 0x04, 0x01 }; // DLE EOT 1
-    // byte[] response = new byte[1];
-    // long startTime = System.currentTimeMillis();
-
-    // while (System.currentTimeMillis() - startTime < timeoutMs) {
-    // out.write(statusCmd);
-    // out.flush();
-
-    // if (in.read(response) == -1) {
-    // Log.e(TAG, "📄 ไม่ได้รับข้อมูลจากเครื่องพิมพ์");
-    // break;
-    // }
-
-    // Log.i(TAG, "🖨 ไบต์สถานะเครื่องพิมพ์: 0x" + Integer.toHexString(response[0] &
-    // 0xff));
-
-    // if ((response[0] & 0x12) == 0x12) {
-    // Log.i(TAG, "✅ เครื่องพิมพ์พร้อมแล้ว");
-    // return true;
-    // }
-
-    // Log.i(TAG, "⏳ กำลังรอเครื่องพิมพ์…");
-    // Thread.sleep(500);
-    // }
-    // } catch (Exception e) {
-    // Log.e(TAG, "เกิดข้อผิดพลาดขณะรอเครื่องพิมพ์", e);
-    // }
-    // return false;
-    // }
     private boolean waitForPrinterReady(OutputStream out, InputStream in, int timeoutMs, boolean isEpson) {
         try {
             if (isEpson) {
@@ -811,20 +667,6 @@ public class PluginWifiPrinter extends CordovaPlugin {
 
         return chunks;
     }
-
-    // public List<Bitmap> splitBitmap(Bitmap original, int maxHeight) {
-    // List<Bitmap> chunks = new ArrayList<>();
-    // int width = original.getWidth();
-    // int height = original.getHeight();
-
-    // for (int y = 0; y < height; y += maxHeight) {
-    // int chunkHeight = Math.min(maxHeight, height - y);
-    // Bitmap chunk = Bitmap.createBitmap(original, 0, y, width, chunkHeight);
-    // chunks.add(chunk);
-    // }
-
-    // return chunks;
-    // }
 
     // ตัดกระดาษ
     private void cutPaper(OutputStream out) throws IOException {
@@ -904,18 +746,6 @@ public class PluginWifiPrinter extends CordovaPlugin {
 
         return sent;
     }
-
-    // private boolean sendBitmapChunkToStream(Bitmap bitmap, OutputStream out) {
-    // try {
-    // printBitmapAsRaster(bitmap, out);
-    // out.flush();
-    // return true;
-    // } catch (Exception e) {
-    // Log.e(TAG, "ไม่สามารถส่งชิ้นส่วนได้: " + e.getMessage(), e);
-    // return false;
-    // }
-    // }
-    //
 
     private Bitmap toBlackAndWhiteDither(Bitmap original) {
         int width = original.getWidth();

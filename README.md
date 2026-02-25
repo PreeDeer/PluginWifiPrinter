@@ -18,6 +18,6 @@ cordova.plugins.PluginWifiPrinter.print(
   err => console.error(err)
 );
 
-## รองรับแพลตฟอร์ม
-- Android
+## รองรับแพลตฟอร์ม ตอนนี้ Android ตัว ios ยังเป็นเวอร์ชันก์เก่า
+- Android 
 - iOS
